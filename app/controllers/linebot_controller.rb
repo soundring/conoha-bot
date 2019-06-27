@@ -135,7 +135,7 @@ class LinebotController < ApplicationController
 
     events.each { |event|
         #天気
-        if event.message['text'].include?("天気教えて")
+        if event.message['text'].include?("天気")
             tenki_url = 'http://api.openweathermap.org/data/2.5/forecast?q=tokyo,jp&lang=ja&appid='
             token = ENV["WEATHER_APIKEY"]
 
@@ -150,20 +150,63 @@ class LinebotController < ApplicationController
                 type: 'text',
                 text: "現在の東京の天気は" + json["list"][0]["weather"][0]["description"] + "だよ！"
             }
-        elsif event.message['text'].include?("最新情報")
+        elsif event.message['text'].include?("ニュース")
             response = {
-                type: 'text',
-                text: "最新情報だよ！\n" + getNotification
+                type: 'flex',
+                altText: 'test',
+                contents: {
+                    type: 'bubble',
+                    styles: {
+                        header: {
+                            backgroundColor: "#afeeee",
+                        },
+                        hero: {
+                            separator: false,     separator: false,
+                        }
+                    },
+                    header: {
+                        type: 'box',
+                        layout: 'vertical',
+                        contents: [
+                            {
+                                type: 'text',
+                                text: '最新ニュースだよ♪',
+                                align: "center"
+                            }
+                        ]
+                    },
+                    body: {
+                        type: 'box',
+                        layout: 'vertical',
+                        contents: [
+                            {
+                                type: 'text',
+                                text: getNotification,
+                                wrap: true,
+                            }
+                        ]
+                    },
+                    footer: {
+                        type: 'box',
+                        layout: 'vertical',
+                        contents: [
+                            {
+                                type: 'button',
+                                style: 'primary',
+                                action: {
+                                    type: 'uri',
+                                    label: 'ニュース一覧へ',
+                                    uri: 'https://www.conoha.jp/news/?btn_id=top_news'
+                                }
+                            }
+                        ]
+                    }
+                }
             }
-        elsif event.message['text'].include?("サーバー情報")
+        elsif event.message['text'].include?("サーバーの状態")
             response = {
                 type: 'text',
                 text: getVmInfo 
-            }
-        elsif event.message['text'].include?("ヘルプ")
-            response = {
-                type: 'text',
-                text: "対応コマンドは以下の通りだよ♪\n・天気教えて\n・最新情報教えて\n・サーバー情報教えて\n（このBotのサーバー情報です）\n・行ってきます\n・おはよう\n・こんにちは\n・こんばんは\n・梅宮\n・このはちゃん\n・壁紙\n・ヘルプ"
             }
         elsif event.message['text'].include?("行ってきます")
             response = {
@@ -184,6 +227,38 @@ class LinebotController < ApplicationController
             response = {
                 type: 'text',
                 text: "こんばんはー"
+            }
+        elsif event.message['text'].include?("あいさつ")
+            response = {
+                type: 'template',
+                altText: '挨拶',
+                template: {
+                    type: 'buttons',
+                    title: 'あいさつメニュー',
+                    text: 'ん？何かな？',
+                    actions: [
+                        {
+                            type: 'message',
+                            label: 'おはよう',
+                            text: 'おはよう'
+                        },
+                        {
+                            type: 'message',
+                            label: 'こんにちは',
+                            text: 'こんにちは'
+                        },
+                        {
+                            type: 'message',
+                            label: 'こんばんは',
+                            text: 'こんばんは'
+                        },
+                        {
+                            type: 'message',
+                            label: '行ってきます',
+                            text: '行ってきます'
+                        }
+                    ]
+                }  
             }
         elsif event.message['text'].include?("このはちゃんが好き")
             response = {
