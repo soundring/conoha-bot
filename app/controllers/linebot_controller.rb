@@ -21,7 +21,7 @@ class LinebotController < ApplicationController
         #トークン取得URL
         conoha_get_token_url = ENV["CONOHA_API_TOKEN_URL"]
         #告知一覧取得URL
-        conoha_get_announce_url = ENV["CONOHA_API_ACCOUNT_URL"]
+        conoha_get_announce_url = ENV["CONOHA_API_NEWS_URL"]
 
         token_uri = conoha_get_token_url
         username = conoha_user
@@ -56,6 +56,59 @@ class LinebotController < ApplicationController
         else
             puts "できてないよ"
         end
+    end
+
+
+    # VM取得
+    def getVmInfo
+         # ConoHaユーザー名
+         conoha_user = ENV["CONOHA_API_USER"]
+         # ConoHaAPI ユーザーパスワード
+         conoha_pass = ENV["CONOHA_API_KEY"]
+         #tenantID
+         conoha_tenant = ENV["CONOHA_API_TENANT"]
+         #tenant名
+         conoha_tenant_name = ENV["CONOHA_API_TENANT_NAME"]
+         #トークン取得URL
+         conoha_get_token_url = ENV["CONOHA_API_TOKEN_URL"]
+         #VM詳細取得URL
+         conoha_get_vm_info_url = ENV["CONOHA_API_VM_GET_URL"]
+ 
+         token_uri = conoha_get_token_url
+         username = conoha_user
+         password = conoha_pass
+         tenantName = conoha_tenant_name
+ 
+         uri = URI.parse(token_uri)
+         http = Net::HTTP.new(uri.host, uri.port)
+         http.use_ssl = true
+ 
+         req = Net::HTTP::Post.new(uri.request_uri)
+         req["Content-Type"] = "application/json"
+         req.body = '{ "auth": { "passwordCredentials": { "username": "'+ username +'", "password": "'+ password + '"}, "tenantName": "'+ tenantName +'" } }'
+         res = http.request(req)
+         json = JSON.parse(res.body)
+         tokenId = json["access"]["token"]["id"]
+         
+
+        #  VM取得部分
+         url = conoha_get_vm_info_url
+         uri = URI.parse(url)
+         https = Net::HTTP.new(uri.host, uri.port)
+         https.use_ssl = true
+         #https.set_debug_output $stderr
+         req = Net::HTTP::Get.new(uri.request_uri)
+         req["Content-Type"] = "application/json"
+         req["X-Auth-Token"] = tokenId
+         res = https.request(req)
+ 
+         if res.code == "200"
+             json = JSON.parse(res.body)
+             json["servers"][0]["metadata"]["instance_name_tag"] + "のサーバーの状態は" + json["servers"][0]["status"] + "だよ！" 
+            
+         else
+             puts "できてないよ"
+         end
     end
     # このは---------------------------------------------------------------------------------
 
@@ -95,12 +148,22 @@ class LinebotController < ApplicationController
 
             response = {
                 type: 'text',
-                text: json["list"][0]["weather"][0]["description"] + "だよ！"
+                text: "現在の東京の天気は" + json["list"][0]["weather"][0]["description"] + "だよ！"
             }
         elsif event.message['text'].include?("最新情報")
             response = {
                 type: 'text',
-                text: getNotification
+                text: "最新情報だよ！\n" + getNotification
+            }
+        elsif event.message['text'].include?("サーバー情報")
+            response = {
+                type: 'text',
+                text: getVmInfo 
+            }
+        elsif event.message['text'].include?("ヘルプ")
+            response = {
+                type: 'text',
+                text: "対応コマンドは以下の通りだよ♪\n・天気教えて\n・最新情報教えて\n・サーバー情報教えて\n（このBotのサーバー情報です）\n・行ってきます\n・おはよう\n・こんにちは\n・こんばんは\n・梅宮\n・このはちゃん\n・壁紙\n・ヘルプ"
             }
         elsif event.message['text'].include?("行ってきます")
             response = {
@@ -110,7 +173,7 @@ class LinebotController < ApplicationController
         elsif event.message['text'].include?("おはよう")
             response = {
                 type: 'text',
-                text: "おはよー！"
+                text: "おはよー！" 
             }
         elsif event.message['text'].include?("こんにちは")
             response = {
@@ -122,7 +185,7 @@ class LinebotController < ApplicationController
                 type: 'text',
                 text: "こんばんはー"
             }
-        elsif event.message['text'].include?("誕生日おめでとう")
+        elsif event.message['text'].include?("このはちゃんが好き")
             response = {
                 type: 'text',
                 text: "ありがとー！"
@@ -132,13 +195,45 @@ class LinebotController < ApplicationController
                 type: 'text',
                 text: "梅宮がなんだって？（不機嫌）"
             }
-        elsif event.message['text'].include?("画像")
-            image_url = "https://img.animatetimes.com/2019/03/5c95c0b2a83ed_8ad47016d98718910dedbdf61de7b0da.jpg"
-
-            resoponse = {
+        elsif event.message['text'].include?("このはちゃん")
+            response = {
+                type: 'template',
+                altText: '代替テキスト',
+                template: {
+                    text: '私のこと',
+                    type: 'confirm',
+                    actions: [
+                        {
+                            type: "message",
+                            label: "好き",
+                            text: "このはちゃんが好き"
+                        },
+                        {
+                            type: "message",
+                            label: "梅宮がいい",
+                            text: "梅宮がいい"
+                        }
+                    ],
+                }
+            }
+        elsif event.message['text'].include?("壁紙")
+            n = 0
+            images = [
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2019_summer/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2019_spring/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_christmas/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_winter/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_halloween/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_autumn/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_yukata/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_rain/1280_800.jpg',
+                'https://conoha.mikumo.com/wp-content/themes/conohamikumo/images/wallpaper/2018_spring/1280_800.jpg'
+            ]
+            n = Random.rand(0 .. 8)
+            response = {
                 type: 'image',
-                originalContentUrl: image_url,
-                previewImageUrl: image_url
+                originalContentUrl: images[n],
+                previewImageUrl: images[n]            
             }
         else
             response = {
