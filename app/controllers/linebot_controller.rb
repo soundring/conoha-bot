@@ -3,115 +3,9 @@ class LinebotController < ApplicationController
     require "json"
     require 'net/http'
     require 'uri'
-
-
-    # このは---------------------------------------------------------------------------------
-    
-
-
-    def getNotification()
-        # ConoHaユーザー名
-        conoha_user = ENV["CONOHA_API_USER"]
-        # ConoHaAPI ユーザーパスワード
-        conoha_pass = ENV["CONOHA_API_KEY"]
-        #tenantID
-        conoha_tenant = ENV["CONOHA_API_TENANT"]
-        #tenant名
-        conoha_tenant_name = ENV["CONOHA_API_TENANT_NAME"]
-        #トークン取得URL
-        conoha_get_token_url = ENV["CONOHA_API_TOKEN_URL"]
-        #告知一覧取得URL
-        conoha_get_announce_url = ENV["CONOHA_API_NEWS_URL"]
-
-        token_uri = conoha_get_token_url
-        username = conoha_user
-        password = conoha_pass
-        tenantName = conoha_tenant_name
-
-        uri = URI.parse(token_uri)
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = true
-
-        req = Net::HTTP::Post.new(uri.request_uri)
-        req["Content-Type"] = "application/json"
-        req.body = '{ "auth": { "passwordCredentials": { "username": "'+ username +'", "password": "'+ password + '"}, "tenantName": "'+ tenantName +'" } }'
-        res = http.request(req)
-        json = JSON.parse(res.body)
-        tokenId = json["access"]["token"]["id"]
-
-
-        url = conoha_get_announce_url
-        uri = URI.parse(url)
-        https = Net::HTTP.new(uri.host, uri.port)
-        https.use_ssl = true
-        #https.set_debug_output $stderr
-        req = Net::HTTP::Get.new(uri.request_uri)
-        req["Content-Type"] = "application/json"
-        req["X-Auth-Token"] = tokenId
-        res = https.request(req)
-
-        if res.code == "200"
-            json = JSON.parse(res.body)
-            json["notifications"][0]["title"] + "\n" + json["notifications"][0]["contents"]
-        else
-            puts "できてないよ"
-        end
-    end
-
-
-    # VM取得
-    def getVmInfo
-         # ConoHaユーザー名
-         conoha_user = ENV["CONOHA_API_USER"]
-         # ConoHaAPI ユーザーパスワード
-         conoha_pass = ENV["CONOHA_API_KEY"]
-         #tenantID
-         conoha_tenant = ENV["CONOHA_API_TENANT"]
-         #tenant名
-         conoha_tenant_name = ENV["CONOHA_API_TENANT_NAME"]
-         #トークン取得URL
-         conoha_get_token_url = ENV["CONOHA_API_TOKEN_URL"]
-         #VM詳細取得URL
-         conoha_get_vm_info_url = ENV["CONOHA_API_VM_GET_URL"]
- 
-         token_uri = conoha_get_token_url
-         username = conoha_user
-         password = conoha_pass
-         tenantName = conoha_tenant_name
- 
-         uri = URI.parse(token_uri)
-         http = Net::HTTP.new(uri.host, uri.port)
-         http.use_ssl = true
- 
-         req = Net::HTTP::Post.new(uri.request_uri)
-         req["Content-Type"] = "application/json"
-         req.body = '{ "auth": { "passwordCredentials": { "username": "'+ username +'", "password": "'+ password + '"}, "tenantName": "'+ tenantName +'" } }'
-         res = http.request(req)
-         json = JSON.parse(res.body)
-         tokenId = json["access"]["token"]["id"]
-         
-
-        #  VM取得部分
-         url = conoha_get_vm_info_url
-         uri = URI.parse(url)
-         https = Net::HTTP.new(uri.host, uri.port)
-         https.use_ssl = true
-         #https.set_debug_output $stderr
-         req = Net::HTTP::Get.new(uri.request_uri)
-         req["Content-Type"] = "application/json"
-         req["X-Auth-Token"] = tokenId
-         res = https.request(req)
- 
-         if res.code == "200"
-             json = JSON.parse(res.body)
-             json["servers"][0]["metadata"]["instance_name_tag"] + "のサーバーの状態は" + json["servers"][0]["status"] + "だよ！" 
-            
-         else
-             puts "できてないよ"
-         end
-    end
-    # このは---------------------------------------------------------------------------------
-
+    require_relative '../modules/weather/get_weather'
+    require_relative '../modules/conoha/get_notification'
+    require_relative '../modules/conoha/get_vm_info'
 
   # callbackアクションのCSRFトークン認証を無効
   protect_from_forgery :except => [:callback]
@@ -134,23 +28,14 @@ class LinebotController < ApplicationController
     events = client.parse_events_from(body)
 
     events.each { |event|
-        #天気
         if event.message['text'].include?("天気")
-            tenki_url = 'http://api.openweathermap.org/data/2.5/forecast?q=tokyo,jp&lang=ja&appid='
-            token = ENV["WEATHER_APIKEY"]
-
-            uri = URI.parse(tenki_url + token)
-            http = Net::HTTP.new(uri.host, uri.port)
-
-            req = Net::HTTP::Get.new(uri.request_uri)
-            res = http.request(req)
-            json = JSON.parse(res.body)
-
+            weather = GetWeather.new
             response = {
                 type: 'text',
-                text: "現在の東京の天気は" + json["list"][0]["weather"][0]["description"] + "だよ！"
+                text: "現在の東京の天気は" + weather.get_weather + "だよ！"
             }
         elsif event.message['text'].include?("ニュース")
+            get_notification = GetConoHaAPI.new
             response = {
                 type: 'flex',
                 altText: 'test',
@@ -161,7 +46,7 @@ class LinebotController < ApplicationController
                             backgroundColor: "#afeeee",
                         },
                         hero: {
-                            separator: false,     separator: false,
+                            separator: false, 
                         }
                     },
                     header: {
@@ -181,7 +66,7 @@ class LinebotController < ApplicationController
                         contents: [
                             {
                                 type: 'text',
-                                text: getNotification,
+                                text: get_notification.getNotification,
                                 wrap: true,
                             }
                         ]
@@ -204,9 +89,10 @@ class LinebotController < ApplicationController
                 }
             }
         elsif event.message['text'].include?("サーバーの状態")
+            vm_info = GetVmInfo.new
             response = {
                 type: 'text',
-                text: getVmInfo 
+                text: vm_info.getVmInfo
             }
         elsif event.message['text'].include?("行ってきます")
             response = {
@@ -286,7 +172,7 @@ class LinebotController < ApplicationController
                         {
                             type: "message",
                             label: "梅宮がいい",
-                            text: "梅宮がいい"
+                            text: "梅宮さんがいい"
                         }
                     ],
                 }
@@ -310,6 +196,97 @@ class LinebotController < ApplicationController
                 originalContentUrl: images[n],
                 previewImageUrl: images[n]            
             }
+        elsif event.message['text'].include?('どこにいるの？')
+            response = {
+                type: 'location',
+                title: "ここにいるよ～",
+                address: "桜丘町26-1 (セルリアンタワー) 渋谷区, 東京都 150-8512 日本",
+                latitude: 35.65610180502175,
+                longitude: 139.69945200061724,
+            }
+        elsif event.message['text'].include?('イメージ')
+            response = {
+                type: 'template',
+                altText: 'イメージ一覧',
+                template: {
+                    type: 'carousel',
+                    actions: [],
+                    columns: [
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60555064-b54d7e80-9d75-11e9-8eb7-f16a9a835fb6.png',
+                            title: 'CentOS',
+                            text: " ",
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'CentOS',
+                                    text: "CentOS"
+                                }
+                            ]
+                        },
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60555092-e0d06900-9d75-11e9-986c-de670f42c292.png',
+                            title: 'Ubuntu',
+                            text: ' ',
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'Ubuntu',
+                                    text: 'Ubuntu'
+                                }
+                            ]
+                        },
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60554837-5c311b00-9d74-11e9-8ac0-4eac2994571f.png',
+                            title: 'Debian',
+                            text: ' ',
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'Debian',
+                                    text: 'Debian'
+                                }
+                            ]
+                        },
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60555122-12493480-9d76-11e9-8801-2dc7e14f74a9.png',
+                            title: 'FreeBSD',
+                            text: ' ',
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'FreeBSD',
+                                    text: 'FreeBSD'
+                                }
+                            ]
+                        },
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60554934-df527100-9d74-11e9-8a1c-b35715da330a.png',
+                            title: 'Fedora',
+                            text: ' ',
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'Fedora',
+                                    text: 'Fedora'
+                                }
+                            ]
+                        },
+                        {
+                            thumbnailImageUrl: 'https://user-images.githubusercontent.com/14822782/60554912-c053df00-9d74-11e9-9846-c6bc14dcebe5.png',
+                            title: 'openSUSE',
+                            text: ' ',
+                            actions: [
+                                {
+                                    type: 'message',
+                                    label: 'openSUSE',
+                                    text: 'openSUSE'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
         else
             response = {
                 type: 'text',
@@ -321,8 +298,14 @@ class LinebotController < ApplicationController
         when Line::Bot::Event::Message
             case event.type
             when Line::Bot::Event::MessageType::Text
-            message = response
-            client.reply_message(event['replyToken'], message)
+                message = response
+                client.reply_message(event['replyToken'], message)
+            when Line::Bot::Event::MessageType::Location
+                message =  {
+                    type: 'text',
+                    text: 'aaaaaaa'
+                }
+                client.reply_message(event['replyToken'],message)
             end
         end
     }
